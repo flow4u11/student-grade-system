@@ -1,0 +1,35 @@
+-- Local-only fixtures; all identity edits and audit entries roll back.
+\set ON_ERROR_STOP on
+begin;
+create temporary table edit_ids (name text primary key,id uuid);
+insert into edit_ids values('admin',gen_random_uuid()),('teacher',gen_random_uuid());
+grant select on edit_ids to authenticated;
+insert into auth.users(id,email) select id,'edit-'||id||'@local.test' from edit_ids;
+insert into public.profiles(id,display_name,role,school_username,updated_at) select id,'Legacy',case name when 'admin' then 'ADMIN' else 'TEACHER' end,'edit-'||id||'@local.test',now()-interval '1 day' from edit_ids;
+create function pg_temp.check_edit(ok boolean,label text) returns void language plpgsql as $$ begin if ok is distinct from true then raise exception 'FAIL %',label;end if;raise notice 'PASS %',label;end $$;
+create function pg_temp.reject_edit(statement text,code text) returns void language plpgsql as $$ begin execute statement;raise exception 'Expected rejection';exception when others then if sqlstate<>code then raise;end if;end $$;
+create function pg_temp.edit_payload() returns jsonb language sql as $$ select '{"display_name":"ครู ทดสอบ","official_first_name_th":"ครู","official_last_name_th":"ทดสอบ","official_first_name":"Legacy","official_last_name":"Teacher","nickname":"Test","contact_email":"teacher@example.test","contact_phone":"00000"}'::jsonb $$;
+grant execute on function pg_temp.check_edit(boolean,text),pg_temp.reject_edit(text,text),pg_temp.edit_payload() to authenticated;
+set local role authenticated;
+select set_config('request.jwt.claim.sub',(select id::text from edit_ids where name='teacher'),true) is not null;
+select pg_temp.reject_edit(format('select public.admin_update_teacher(%L,%L,pg_temp.edit_payload())',auth.uid(),now()-interval '1 day'),'42501');
+select pg_temp.reject_edit('select public.update_teacher_profile(''{"official_first_name_th":"Changed"}'')','42501');
+select pg_temp.check_edit(true,'Teacher cannot invoke admin editor or self-correct official identity');
+select set_config('request.jwt.claim.sub',(select id::text from edit_ids where name='admin'),true) is not null;
+select public.admin_update_teacher((select id from edit_ids where name='teacher'),now()-interval '1 day',pg_temp.edit_payload());
+select pg_temp.check_edit((select display_name='ครู ทดสอบ' and official_first_name_th='ครู' and nickname='Test' and role='TEACHER' and active and school_username='edit-'||id||'@local.test' and not onboarding_complete from public.profiles where id=(select id from edit_ids where name='teacher')),'Admin backfill preserves login, role, active and onboarding fields');
+select pg_temp.reject_edit(format('select public.admin_update_teacher(%L,%L,pg_temp.edit_payload())',(select id from edit_ids where name='teacher'),now()-interval '1 day'),'40001');
+select pg_temp.check_edit(true,'Concurrent stale edit rejected');
+select pg_temp.reject_edit(format('select public.admin_update_teacher(%L,%L,pg_temp.edit_payload()||''{"role":"ADMIN"}'')',(select id from edit_ids where name='teacher'),(select updated_at from public.profiles where id=(select id from edit_ids where name='teacher'))),'23514');
+select pg_temp.reject_edit(format('select public.admin_update_teacher(%L,%L,pg_temp.edit_payload()||''{"school_username":"changed"}'')',(select id from edit_ids where name='teacher'),(select updated_at from public.profiles where id=(select id from edit_ids where name='teacher'))),'23514');
+select pg_temp.check_edit(true,'Direct RPC forbids role and login mutation');
+select pg_temp.reject_edit(format('select public.admin_update_teacher(%L,%L,pg_temp.edit_payload()||''{"official_last_name_th":""}'')',(select id from edit_ids where name='teacher'),(select updated_at from public.profiles where id=(select id from edit_ids where name='teacher'))),'23514');
+select pg_temp.reject_edit(format('select public.admin_update_teacher(%L,%L,pg_temp.edit_payload()||''{"nickname":null}'')',(select id from edit_ids where name='teacher'),(select updated_at from public.profiles where id=(select id from edit_ids where name='teacher'))),'23514');
+select pg_temp.reject_edit(format('select public.admin_update_teacher(%L,%L,pg_temp.edit_payload()-''display_name'')',(select id from edit_ids where name='teacher'),(select updated_at from public.profiles where id=(select id from edit_ids where name='teacher'))),'23514');
+select pg_temp.check_edit(true,'Malformed, partial and unpaired identity payloads denied');
+select pg_temp.reject_edit(format('select public.admin_update_teacher(%L,%L,pg_temp.edit_payload())',auth.uid(),now()-interval '1 day'),'42501');
+select pg_temp.reject_edit(format('select public.admin_update_teacher(%L,null,pg_temp.edit_payload())',(select id from edit_ids where name='teacher')),'40001');
+select pg_temp.check_edit(true,'Non-teacher targets and missing version denied');
+select pg_temp.check_edit(not has_function_privilege('anon','public.admin_update_teacher(uuid,timestamptz,jsonb)','execute') and not has_table_privilege('authenticated','public.profiles','UPDATE'),'Anonymous editor and direct profile writes denied');
+select pg_temp.check_edit(exists(select 1 from public.audit_logs where entity='profiles' and entity_id=(select id from edit_ids where name='teacher') and action='UPDATE' and actor=auth.uid()),'Teacher identity corrections audited');
+rollback;

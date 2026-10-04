@@ -1,0 +1,2 @@
+-- Deliberately no demo credentials or student records in SQL seeds.
+-- Run npm run seed:local after npm run setup:local for guarded local-only fake data.

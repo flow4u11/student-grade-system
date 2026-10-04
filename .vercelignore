@@ -1,0 +1,15 @@
+/.env*
+/.local
+/.git
+/.next
+/node_modules
+/supabase
+/ops
+/docs
+/tests
+/scripts
+/test-results
+/playwright-report
+/coverage
+/AI_*.md
+/*.tsbuildinfo

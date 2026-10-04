@@ -1,0 +1,12 @@
+node_modules
+.next
+.local
+.env*
+playwright-report
+test-results
+coverage
+supabase/.temp
+supabase/.branches
+ops/production/supabase/.temp
+package-lock.json
+docs/REQUIREMENTS.md
