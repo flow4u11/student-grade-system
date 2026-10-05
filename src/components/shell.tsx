@@ -563,11 +563,13 @@ export function Dashboard() {
                       {o.published} {t("published")}
                     </span>
                     <span className="text-link">
-                      {t(
-                        o.total > o.recorded
-                          ? "continueGrading"
-                          : "openGradebook",
-                      )}{" "}
+                      {o.can_edit === false
+                        ? t("viewResults")
+                        : t(
+                            o.total > o.recorded
+                              ? "continueGrading"
+                              : "openGradebook",
+                          )}{" "}
                       →
                     </span>
                   </div>

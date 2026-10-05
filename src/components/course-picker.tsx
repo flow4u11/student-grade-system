@@ -5,6 +5,7 @@ import type { Offering } from "@/lib/types";
 import { useSchool } from "./data";
 import { useLocale } from "./providers";
 export type WorkRow = {
+  can_edit?: boolean;
   id: string;
   subject_id: string;
   class_id: string;

@@ -1,4 +1,5 @@
 export const en = {
+  viewResults: "View results",
   homeroom: "My classrooms",
   refresh: "Refresh",
   teachers: "Teacher accounts",
@@ -288,6 +289,7 @@ export const en = {
 } as const;
 export type MessageKey = keyof typeof en;
 export const th: Record<MessageKey, string> = {
+  viewResults: "ดูผลการเรียน",
   homeroom: "ห้องประจำชั้น",
   refresh: "รีเฟรช",
   teachers: "บัญชีครู",
