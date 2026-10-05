@@ -1,4 +1,6 @@
 export const en = {
+  homeroom: "My classrooms",
+  refresh: "Refresh",
   teachers: "Teacher accounts",
   rollNumber: "Class number",
   teacherProfile: "Teacher profile",
@@ -286,6 +288,8 @@ export const en = {
 } as const;
 export type MessageKey = keyof typeof en;
 export const th: Record<MessageKey, string> = {
+  homeroom: "ห้องประจำชั้น",
+  refresh: "รีเฟรช",
   teachers: "บัญชีครู",
   rollNumber: "เลขที่",
   teacherProfile: "โปรไฟล์ครู",

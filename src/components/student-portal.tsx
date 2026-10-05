@@ -7,6 +7,8 @@ import { useLocale, Preferences } from "./providers";
 import { api, Empty, Notice, useError } from "./ui";
 import { gpa } from "@/lib/grading";
 import type { Portal } from "@/lib/types";
+import { WelcomeScreen, ThaiClock } from "./workspace-extras";
+import { gradeTone } from "@/lib/grade-tone";
 export function StudentPortal({ data }: { data: Portal }) {
   const { t, locale } = useLocale();
   const errorText = useError();
@@ -21,13 +23,19 @@ export function StudentPortal({ data }: { data: Portal }) {
   async function logout() {
     try {
       await api("/api/auth/logout", {});
-      window.location.replace(new URL("/login", window.location.origin).href);
+      window.location.replace(
+        new URL("/student/login", window.location.origin).href,
+      );
     } catch (e) {
       setError(errorText(e));
     }
   }
   return (
     <main className="student-page">
+      <WelcomeScreen
+        name={`${data.student.first_name} ${data.student.last_name}`}
+        kind="student"
+      />
       <header className="student-header">
         <a className="brand" href="/student">
           <span className="brand-icon">
@@ -36,6 +44,7 @@ export function StudentPortal({ data }: { data: Portal }) {
           <strong>{t("appName")}</strong>
         </a>
         <div>
+          <ThaiClock />
           <Preferences />
           <button className="button small" onClick={logout}>
             <LogOut size={15} />
@@ -62,7 +71,9 @@ export function StudentPortal({ data }: { data: Portal }) {
         </div>
         <div className="gpa-card">
           <small>{t("gpa")}</small>
-          <strong>{gpa(grades) || "—"}</strong>
+          <strong className={gradeTone(gpa(grades), true)}>
+            {gpa(grades) || "—"}
+          </strong>
         </div>
       </section>
       <div className="toolbar">
@@ -111,7 +122,7 @@ export function StudentPortal({ data }: { data: Portal }) {
                     <td data-label={t("credits")}>{g.credits}</td>
                     <td data-label={t("result")}>
                       <span
-                        className={`badge ${g.result === "FAIL" ? "amber" : "green"}`}
+                        className={`badge ${gradeTone(g.result || g.grade_points)}`}
                       >
                         {g.result
                           ? t(g.result === "PASS" ? "pass" : "fail")

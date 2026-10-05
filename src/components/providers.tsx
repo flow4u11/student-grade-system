@@ -1,4 +1,5 @@
 "use client";
+import { PersonalThemeProvider } from "./personal-theme";
 import { Select } from "./select";
 import { createContext, useContext, useState } from "react";
 import { defaultBranding, type Branding } from "@/lib/branding";
@@ -43,24 +44,26 @@ export function Providers({
   }
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-      <BrandingContext.Provider value={school}>
-        <LocaleContext.Provider
-          value={{
-            locale,
-            setLocale,
-            t: (key) => (locale === "th" ? th : en)[key],
-          }}
-        >
-          <NavigationContext.Provider value={{ collapsed, setCollapsed }}>
-            <div
-              className="application-root"
-              onDragStartCapture={(e) => e.preventDefault()}
-            >
-              {children}
-            </div>
-          </NavigationContext.Provider>
-        </LocaleContext.Provider>
-      </BrandingContext.Provider>
+      <PersonalThemeProvider school={school}>
+        <BrandingContext.Provider value={school}>
+          <LocaleContext.Provider
+            value={{
+              locale,
+              setLocale,
+              t: (key) => (locale === "th" ? th : en)[key],
+            }}
+          >
+            <NavigationContext.Provider value={{ collapsed, setCollapsed }}>
+              <div
+                className="application-root"
+                onDragStartCapture={(e) => e.preventDefault()}
+              >
+                {children}
+              </div>
+            </NavigationContext.Provider>
+          </LocaleContext.Provider>
+        </BrandingContext.Provider>
+      </PersonalThemeProvider>
     </ThemeProvider>
   );
 }

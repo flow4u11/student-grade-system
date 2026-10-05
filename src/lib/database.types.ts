@@ -751,6 +751,11 @@ export type Database = {
         Args: { classroom: string; term: string };
         Returns: boolean;
       };
+      can_edit_offering: { Args: { target: string }; Returns: boolean };
+      class_homeroom_teachers: {
+        Args: { classroom: string; term: string };
+        Returns: Json;
+      };
       is_staff: { Args: Record<PropertyKey, never>; Returns: boolean };
       issue_teacher_invite: {
         Args: { code_hash: string; days: number; max_uses: number };
@@ -834,6 +839,10 @@ export type Database = {
           token_hash: string;
         };
         Returns: boolean;
+      };
+      reset_student_pin: {
+        Args: { learner: string; term: string; pin: string };
+        Returns: undefined;
       };
       student_logout: { Args: { session_hash: string }; Returns: undefined };
       student_neighbors: {

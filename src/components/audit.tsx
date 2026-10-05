@@ -4,9 +4,11 @@ import { useState } from "react";
 import { useLoad, useSchool } from "./data";
 import { useLocale } from "./providers";
 import { Empty, Loading, Notice, Pager, useError } from "./ui";
+import { auditLabel } from "@/lib/audit-label";
 type Log = {
   id: number;
   actor: string | null;
+  actor_name: string | null;
   action: string;
   entity: string;
   created_at: string;
@@ -63,13 +65,16 @@ export function Audit() {
                           },
                         ).format(new Date(row.created_at))}
                       </td>
-                      <td className="id-text">
-                        {row.actor === meta.profile.id
-                          ? meta.profile.display_name
-                          : row.actor || t("systemActor")}
+                      <td>
+                        {row.actor_name ||
+                          (row.actor === meta.profile.id
+                            ? meta.profile.display_name
+                            : t("systemActor"))}
                       </td>
                       <td>
-                        <span className="badge">{row.action}</span>
+                        <span className="badge">
+                          {auditLabel(row.action, locale)}
+                        </span>
                       </td>
                       <td>{row.entity}</td>
                       <td>

@@ -2,6 +2,7 @@
 import { Select } from "./select";
 import { useState } from "react";
 import { isAdmin } from "@/lib/permissions";
+import { Search } from "lucide-react";
 import { useLoad, useSchool } from "./data";
 import { useLocale } from "./providers";
 import { api, Loading, Notice, useError } from "./ui";
@@ -25,9 +26,22 @@ export function Assignments() {
     admin ? "/api/staff/assignments" : null,
   );
   const [teacher, setTeacher] = useState("");
+  const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const [issue, setIssue] = useState("");
   const errorText = useError();
+  const courseOptions = meta.offerings
+    .filter((o) => o.term_id === term && !o.archived)
+    .map((o) => ({
+      offering: o,
+      subject: meta.subjects.find((s) => s.id === o.subject_id),
+      classroom: meta.classes.find((c) => c.id === o.class_id),
+    }));
+  const matchingCourses = courseOptions.filter(({ subject, classroom }) =>
+    `${subject?.code || ""} ${subject?.name_th || ""} ${subject?.name_en || ""} ${classroom?.name || ""}`
+      .toLocaleLowerCase()
+      .includes(search.trim().toLocaleLowerCase()),
+  );
   if (!admin) return <Notice error={t("forbidden")} />;
   async function assign(offering: string, assigned: boolean) {
     setBusy(true);
@@ -108,8 +122,8 @@ export function Assignments() {
                 </legend>
                 <p className="hint">
                   {th
-                    ? "เข้าถึงรายชื่อนักเรียนและทุกวิชาของห้องที่เลือกได้ แม้ไม่ได้มอบหมายรายวิชาแยก"
-                    : "Accesses students and every course in these classrooms without separate course assignments."}
+                    ? "ดูนักเรียนและผลการเรียนทุกวิชาของห้องนี้ได้ แต่กรอก แก้ไข หรือประกาศผลได้เฉพาะวิชาที่มอบหมายให้สอนด้านล่าง"
+                    : "Views every student and course in these classrooms. Grading and publishing require a course assignment below."}
                 </p>
                 <div className="classroom-options">
                   {meta.classes
@@ -136,29 +150,54 @@ export function Assignments() {
           <h2>
             {th ? "วิชาที่มอบหมายเพิ่มเติม" : "Additional assigned courses"}
           </h2>
+          {teacher && !!courseOptions.length && (
+            <>
+              <label className="search-field">
+                <Search size={18} />
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  aria-label={
+                    th ? "ค้นหาวิชาที่มอบหมาย" : "Search courses to assign"
+                  }
+                  placeholder={
+                    th
+                      ? "ค้นหาชื่อวิชา รหัสวิชา หรือห้องเรียน…"
+                      : "Search subject, code or classroom…"
+                  }
+                />
+              </label>
+              <p className="hint" aria-live="polite">
+                {matchingCourses.length} / {courseOptions.length}{" "}
+                {th ? "รายวิชา" : "courses"}
+              </p>
+            </>
+          )}
           {teacher &&
-            meta.offerings
-              .filter((o) => o.term_id === term && !o.archived)
-              .map((o) => {
-                const s = meta.subjects.find((s) => s.id === o.subject_id);
-                return (
-                  <label key={o.id} className="classroom-option">
-                    <input
-                      type="checkbox"
-                      disabled={busy}
-                      checked={data.assignments.some(
-                        (a) =>
-                          a.teacher_id === teacher && a.offering_id === o.id,
-                      )}
-                      onChange={(e) => assign(o.id, e.target.checked)}
-                    />
-                    <span>
-                      {s?.code} · {th ? s?.name_th : s?.name_en} ·{" "}
-                      {meta.classes.find((c) => c.id === o.class_id)?.name}
-                    </span>
-                  </label>
-                );
-              })}
+            matchingCourses.map(({ offering: o, subject: s, classroom }) => {
+              return (
+                <label key={o.id} className="classroom-option">
+                  <input
+                    type="checkbox"
+                    disabled={busy}
+                    checked={data.assignments.some(
+                      (a) => a.teacher_id === teacher && a.offering_id === o.id,
+                    )}
+                    onChange={(e) => assign(o.id, e.target.checked)}
+                  />
+                  <span>
+                    {s?.code} · {th ? s?.name_th : s?.name_en} ·{" "}
+                    {classroom?.name}
+                  </span>
+                </label>
+              );
+            })}
+          {teacher && !!courseOptions.length && !matchingCourses.length && (
+            <p className="hint">
+              {th ? "ไม่พบวิชาที่ตรงกับคำค้น" : "No matching courses"}
+            </p>
+          )}
           {teacher &&
             !meta.offerings.some((o) => o.term_id === term && !o.archived) && (
               <p>

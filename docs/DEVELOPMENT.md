@@ -2,7 +2,7 @@
 
 A real, local-first school grade system with teacher and student portals. Built with Next.js App Router, TypeScript, Tailwind, Supabase/PostgreSQL/Auth, Zod and ExcelJS.
 
-Version 2.0.0-beta.7. The hosted beta is restricted to authorized staff. Student login is disabled. Read the detailed [Thai user guide](../README.md) before testing.
+Version 2.0.0-beta.8. The hosted beta is restricted to authorized staff. Student login requires explicit STUDENT_PORTAL_ENABLED=true; default configuration is fail-closed. Public /demo uses fictional data without school database access. Read the detailed [Thai user guide](../README.md) before testing.
 
 ## Features
 

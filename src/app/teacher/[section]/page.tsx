@@ -1,3 +1,4 @@
+import { HomeroomDashboard } from "@/components/homeroom-dashboard";
 import { TeacherAccounts } from "@/components/teacher-accounts";
 import {
   TeacherProfile,
@@ -37,6 +38,7 @@ export default async function Page({
   if (
     ![
       "students",
+      "homeroom",
       "import",
       "terms",
       "classes",
@@ -55,7 +57,9 @@ export default async function Page({
     notFound();
   return (
     <>
-      {section === "teachers" ? (
+      {section === "homeroom" ? (
+        <HomeroomDashboard />
+      ) : section === "teachers" ? (
         <TeacherAccounts />
       ) : section === "profile" ? (
         <TeacherProfile />

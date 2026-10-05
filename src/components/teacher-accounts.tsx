@@ -1,7 +1,8 @@
 "use client";
-import { Pencil, Search } from "lucide-react";
+import { Pencil, Search, UserRound } from "lucide-react";
+import Image from "next/image";
 import { useState } from "react";
-import { useLoad } from "./data";
+import { useLoad, useSchool } from "./data";
 import { useLocale } from "./providers";
 import { api, Field, Loading, Modal, Notice, useError } from "./ui";
 type Teacher = {
@@ -18,15 +19,21 @@ type Teacher = {
   nickname: string;
   contact_email: string;
   contact_phone: string;
+  avatar_url?: string | null;
+  bio?: string;
+  teaching_request?: string;
+  homerooms?: { term_id: string; class_id: string }[];
 };
 export function TeacherAccounts() {
   const { locale, t } = useLocale();
   const th = locale === "th";
+  const { meta, term } = useSchool();
   const { data, error, reload } = useLoad<{ rows: Teacher[] }>(
     "/api/account/teachers",
   );
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Teacher | null>(null);
+  const [viewing, setViewing] = useState<Teacher | null>(null);
   const [saved, setSaved] = useState(false);
   const [selected, setSelected] = useState<Teacher | null>(null);
   const [busy, setBusy] = useState(false),
@@ -100,12 +107,27 @@ export function TeacherAccounts() {
                 {rows.map((p) => (
                   <tr key={p.id}>
                     <td>
-                      <strong>
+                      <button
+                        type="button"
+                        className="teacher-profile-name text-link"
+                        onClick={() => setViewing(p)}
+                      >
                         {p.official_first_name_th
                           ? `${p.official_first_name_th} ${p.official_last_name_th}`
                           : p.display_name}
-                      </strong>
+                      </button>
                       <span className="subline">{p.role}</span>
+                      <div className="identity">
+                        {p.homerooms
+                          ?.filter((h) => h.term_id === term)
+                          .map((h) => (
+                            <span className="badge green" key={h.class_id}>
+                              {th ? "ครูประจำชั้น" : "Homeroom"}{" "}
+                              {meta.classes.find((c) => c.id === h.class_id)
+                                ?.name || "—"}
+                            </span>
+                          ))}
+                      </div>
                     </td>
                     <td>{p.school_username}</td>
                     <td>{t(p.active ? "active" : "inactive")}</td>
@@ -149,6 +171,107 @@ export function TeacherAccounts() {
             </table>
           </div>
         </section>
+      )}
+      {viewing && (
+        <Modal
+          title={th ? "โปรไฟล์ครู" : "Teacher profile"}
+          onClose={() => setViewing(null)}
+        >
+          <div className="dialog-body teacher-profile-detail">
+            <div className="profile-hero">
+              <span className="profile-avatar">
+                {viewing.avatar_url ? (
+                  <Image
+                    unoptimized
+                    src={viewing.avatar_url}
+                    width={64}
+                    height={64}
+                    alt={th ? "รูปโปรไฟล์ครู" : "Teacher profile photo"}
+                  />
+                ) : (
+                  <UserRound size={32} />
+                )}
+              </span>
+              <div>
+                <h2>
+                  {viewing.official_first_name_th
+                    ? `${viewing.official_first_name_th} ${viewing.official_last_name_th}`
+                    : viewing.display_name}
+                </h2>
+                {viewing.official_first_name && (
+                  <p className="muted">
+                    {viewing.official_first_name} {viewing.official_last_name}
+                  </p>
+                )}
+                <div className="identity">
+                  <span className="badge">{viewing.role}</span>
+                  <span className="badge">
+                    {t(viewing.active ? "active" : "inactive")}
+                  </span>
+                </div>
+                <div className="identity">
+                  {viewing.homerooms
+                    ?.filter((h) => h.term_id === term)
+                    .map((h) => (
+                      <span className="badge green" key={h.class_id}>
+                        {th ? "ครูประจำชั้น" : "Homeroom"}{" "}
+                        {meta.classes.find((c) => c.id === h.class_id)?.name ||
+                          "—"}
+                      </span>
+                    ))}
+                </div>
+              </div>
+            </div>
+            <dl className="teacher-profile-facts">
+              <div>
+                <dt>{th ? "บัญชีเข้าสู่ระบบ" : "Login"}</dt>
+                <dd>{viewing.school_username || "—"}</dd>
+              </div>
+              <div>
+                <dt>{th ? "ชื่อเล่น" : "Nickname"}</dt>
+                <dd>{viewing.nickname || "—"}</dd>
+              </div>
+              <div>
+                <dt>{th ? "อีเมลติดต่อ" : "Contact email"}</dt>
+                <dd>{viewing.contact_email || "—"}</dd>
+              </div>
+              <div>
+                <dt>{th ? "เบอร์โทร" : "Phone"}</dt>
+                <dd>{viewing.contact_phone || "—"}</dd>
+              </div>
+              <div>
+                <dt>{th ? "วิชาและห้องที่สอน" : "Teaching request"}</dt>
+                <dd>{viewing.teaching_request || "—"}</dd>
+              </div>
+              <div>
+                <dt>{th ? "เกี่ยวกับฉัน" : "About me"}</dt>
+                <dd>{viewing.bio || "—"}</dd>
+              </div>
+            </dl>
+            <div className="dialog-actions">
+              <button
+                className="button"
+                type="button"
+                onClick={() => setViewing(null)}
+              >
+                {t("close")}
+              </button>
+              {viewing.role === "TEACHER" && (
+                <button
+                  className="button primary"
+                  type="button"
+                  onClick={() => {
+                    setEditing(viewing);
+                    setViewing(null);
+                  }}
+                >
+                  <Pencil size={15} />
+                  {t("edit")}
+                </button>
+              )}
+            </div>
+          </div>
+        </Modal>
       )}
       {editing && (
         <Modal

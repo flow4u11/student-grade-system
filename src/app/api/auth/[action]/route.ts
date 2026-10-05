@@ -42,6 +42,14 @@ export async function POST(
     const value = input.parse(await body(request));
     if (value.kind === "student" && !studentPortalEnabled())
       return json({ error: "forbidden" }, 403);
+    if (value.kind === "student") {
+      z.string()
+        .regex(/^\d{5}$/)
+        .parse(value.identifier);
+      z.string()
+        .regex(/^\d{6,12}$/)
+        .parse(value.password);
+    }
     const service = serviceClient();
     if (value.kind === "teacher") {
       const limits = await Promise.all([

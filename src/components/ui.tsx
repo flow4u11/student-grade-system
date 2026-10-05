@@ -7,6 +7,7 @@ import {
   type InputHTMLAttributes,
 } from "react";
 import { FieldLabelContext } from "./field-label";
+import { usePathname } from "next/navigation";
 import { BookOpen, Eye, EyeOff, X } from "lucide-react";
 import { useLocale } from "./providers";
 import { en, type MessageKey } from "@/lib/i18n";
@@ -46,27 +47,74 @@ export function Notice({
     </div>
   ) : null;
 }
-export function Loading() {
+export function Loading({
+  layout,
+}: {
+  layout?: "table" | "profile" | "cards" | "form";
+}) {
   const { t } = useLocale();
+  const path = usePathname();
+  const kind =
+    layout ||
+    (path?.includes("/students/") || path?.endsWith("/profile")
+      ? "profile"
+      : path?.endsWith("/settings") ||
+          path?.includes("login") ||
+          path?.includes("register")
+        ? "form"
+        : path === "/teacher" ||
+            path?.endsWith("/homeroom") ||
+            path?.endsWith("/gradebook")
+          ? "cards"
+          : "table");
   return (
-    <div className="skeleton-page" role="status" aria-busy="true">
+    <div
+      className={`skeleton-page skeleton-layout-${kind}`}
+      role="status"
+      aria-busy="true"
+    >
       <span className="sr-only">{t("loading")}</span>
       <div aria-hidden="true">
         <div className="skeleton skeleton-title" />
         <div className="skeleton skeleton-subtitle" />
-        <div className="skeleton-panel">
-          <div className="skeleton-profile">
+        {kind === "profile" && (
+          <div className="skeleton-panel skeleton-profile">
             <div className="skeleton skeleton-avatar" />
             <div className="skeleton skeleton-name" />
+            <div className="skeleton skeleton-gpa" />
           </div>
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="skeleton-row">
-              <div className="skeleton" />
-              <div className="skeleton" />
-              <div className="skeleton" />
-            </div>
-          ))}
-        </div>
+        )}
+        {kind === "cards" ? (
+          <div className="skeleton-card-grid">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <div className="skeleton-panel" key={i}>
+                <div className="skeleton skeleton-subtitle" />
+                <div className="skeleton skeleton-name" />
+                <div className="skeleton skeleton-subtitle" />
+              </div>
+            ))}
+          </div>
+        ) : kind === "form" ? (
+          <div className="skeleton-panel form-grid">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <div key={i}>
+                <div className="skeleton skeleton-subtitle" />
+                <div className="skeleton skeleton-input" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="skeleton-panel">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="skeleton-row">
+                <div className="skeleton" />
+                <div className="skeleton" />
+                <div className="skeleton" />
+                <div className="skeleton" />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,55 +1,39 @@
-# Security model and release review
+# Security model — beta.8
 
-## Trust boundaries
+## Public and private surfaces
 
-Teachers use Supabase Auth email/password. The server validates identity with `auth.getUser()` and reads an active `profiles` row on every privileged request. ADMIN and TEACHER may manage school records; only ADMIN can read audit logs. VIEWER is reserved and has no application access in V1. There is no public signup or role assignment endpoint. Provision administrators using the operator script; create additional staff through the authenticated Supabase operator interface and assign their profile role deliberately.
+`/` is a public product page. `/demo` contains invented fixtures and in-memory actions; neither route loads school branding, authentication state or student data from Supabase. Refreshing the demo discards edits. Public source does not contain live credentials, rosters, uploads or private Git history.
 
-Every public school table has explicit RLS. Anonymous users have no table grants. Authenticated users can only select records through staff policies; direct inserts, updates, and deletes are revoked. Public write RPCs check `is_staff()` and use a fixed empty search path. No browser receives a service role/secret key. The browser talks only to same-origin application endpoints; staff operations use the teacher's own Supabase session.
+The school workspace requires an active Supabase staff profile. ADMIN/DEVELOPER manage central records. TEACHER reads only assigned teaching classes/courses and explicit homeroom classes in the relevant term. School-table RLS remains enforced independently of the UI. Authenticated direct writes are revoked; mutation RPCs validate authorization with a fixed search path. Server secrets never reach browser code.
 
-Migration 003 also removes implicit API privileges on future tables, sequences and functions created by `postgres`. Future migrations must grant access deliberately. This includes the global function default because a schema-level revoke cannot override a global grant ([PostgreSQL default privileges](https://www.postgresql.org/docs/17/sql-alterdefaultprivileges.html)). The local configuration disables automatic exposure of new objects. Existing application grants remain explicit and are regression-tested by `scripts/test-default-privileges.sql`.
+## Homeroom reads and teaching writes
+
+Migration013 separates `can_access_offering` from `can_edit_offering`. Homeroom teachers may read every subject/result in their class and term. Saving, publishing, unpublishing, resetting and bulk grade writes require explicit teaching assignment, unless the user is an administrator. Permissions are checked again after offering locks. Destructive class moves cannot clear unassigned-course grades through a homeroom permission.
+
+Read-only inputs and controls reflect this policy, but the database is the authority. Revoked permissions cannot be bypassed by a stale page or a manually constructed request.
 
 ## Student ID and PIN
 
-Student IDs are case-sensitive text. PINs have 6–12 decimal digits. Choose at least eight random digits and distribute privately. PostgreSQL pgcrypto bcrypt (cost 12) hashes PINs in an unexposed `private` schema. Neither hashes nor PINs appear in result tables, API responses, audit logs, or exports. Imported students start without login credentials; a teacher sets their PIN individually.
+Student access is fail-closed unless `STUDENT_PORTAL_ENABLED=true`. Student login has a separate `/student/login` route and accepts exactly five digits plus a PIN of 6–12 digits. The username is resolved from the current `students.student_number`; changing that record changes the login username automatically. PINs are stored as bcrypt hashes in the private schema.
 
-A successful login creates a 256-bit random opaque session token. The database stores only its SHA-256 hash and an eight-hour absolute expiry. The cookie is HttpOnly, SameSite=Strict, and Secure on HTTPS. Only loopback development origins may use HTTP. Deactivation, PIN reset, and logout revoke student sessions; each portal request checks the active student and expiry again.
+Migration014 allows authorized staff to reset a PIN only for an active student in a term/class the staff member can access. It locks the student/enrollment, validates the ID/PIN and revokes all existing student sessions. Audit records contain the actor and student/term identifiers, never the plaintext PIN or hash. Anonymous callers have no direct PIN RPC access.
 
-Only the server key can execute student authentication/session RPCs. The portal RPC accepts a session hash, resolves the owner internally, and returns only that student's identity, enrollments, and PUBLISHED grades. It never accepts an arbitrary student ID from a client. Students have no Supabase JWT or table-query capability.
+Student sessions contain a random browser token while the database stores its keyed hash. The cookie is HttpOnly, Secure on HTTPS, SameSite=Strict and expires after eight hours. The server-only student portal returns only that student's published results and enrollment history; draft results and staff APIs remain inaccessible. Logout revokes the student session. Switching between staff/student sign-in clears the other identity, including stale staff cookie chunks on shared browsers.
 
-## Brute force and CSRF
+## Requests and integrity
 
-Persistent, atomic PostgreSQL counters allow 10 attempts per identifier and 30 attempts per origin-IP bucket in 15 minutes. Counts include successful logins. IDs and IPs are keyed with HMAC-SHA256 using SESSION_SECRET. Unknown and inactive students perform a bcrypt operation and return the same login error as a wrong PIN. Old limiter buckets and expired sessions are removed during related activity.
+Mutation endpoints enforce the exact application origin and bounded validated input. Staff/student login has account and IP attempt limits. Limits retain keyed identifiers rather than raw account names/IP addresses. Malformed inputs do not become SQL strings.
 
-On Vercel the trusted `x-vercel-forwarded-for` header supplies the IP. Outside Vercel a shared bucket is deliberately conservative; configure a trusted ingress implementation before scaling a different hosting platform. Account buckets always apply. Do not trust arbitrary client `x-forwarded-for` headers.
+Version checks prevent silent grade overwrites. Published grades require an explicit unpublish or confirmed scoped reset before changing real results. Atomic bulk operations roll back on permission or conflict failures. Positive-credit published numeric results alone contribute to GPA; imported unknown credits are never guessed.
 
-Every POST requires an exact Origin match to APP_URL; JSON bodies are limited to 1 MiB. Authentication/authorization is repeated for each mutation. Cookies are not readable by browser scripts. All private API responses use `private, no-store`. Requests do not use student IDs/names as browser query parameters. Exported files are private educational records and should be handled accordingly.
+## Teacher profiles and activity
 
-## Integrity and privacy
+Admin teacher-profile views are authenticated and include signed photo URLs. Uploaded JPEG/PNG/WebP images are validated, resized and reencoded without metadata. Teacher actions appear by display name in audit and authorized admin student activity views. Permanently deleted accounts remain anonymized in retained school history; the application does not reconstruct deleted private profiles.
 
-- Database functions calculate persisted grades using numeric arithmetic. The browser calculation is only a preview.
-- Grade writes/publications lock the offering and check row versions; a conflict rolls back the whole batch.
-- Changed published scores return to DRAFT. Publication is intentional and confirmed.
-- Schemes referenced by offerings cannot be edited. Used offering settings, term identity, and graded enrollment assignment cannot move.
-- Public UI provides deactivation, not destructive student deletion.
-- Audits capture record changes and actor IDs. PIN changes record only the action. School staff cannot modify or delete audit rows.
-- Sample credentials are random, generated locally, git-ignored, and never part of migrations or SQL seed.
-- XLSX imports reject formula/error cells. Excel exports encode text as text, including leading-zero IDs and formula-looking names.
-- Security headers deny framing, object embedding, unnecessary permissions, and cross-origin data connections.
+## Deployment and source publication
 
-## Deployment controls still owned by the school
+Use HTTPS and store server secrets only in hosting configuration. Disable public Supabase Auth signup; teacher registration requires a valid server-checked school invitation. Apply all migrations before enabling the student feature. Never publish `.local`, `.env` secrets, spreadsheet imports, uploaded photos, school exports or screenshots containing private records. The original private checkout's push URL is disabled; publish from a clean public clone/snapshot.
 
-Before handling real records: independently review authorization, enable Supabase Auth MFA/enforcement where required, set password policy and recovery/support procedures, configure backups/PITR and retention, restrict operator access, verify the real domain and TLS, and adopt the school's privacy and PIN distribution policies. V1 has no student self-service PIN recovery, staff invitation UI, fine-grained per-class teacher permissions, or MFA enforcement UI. These are stated limits, not simulated features.
+## Verification for this release
 
-The current CSP permits inline scripts/styles because Next.js and the theme bootstrap require them. It disallows eval in production and limits script sources to self. A nonce-based CSP is a suitable future enhancement. No advertising, third-party analytics, external fonts, or error-reporting trackers are included.
-
-## Verification
-
-`npm run test:db` exercises real local RLS, RPC permissions, owner isolation, draft hiding, publication, session revocation, rate limiting, immutable grading history, duplicate rollback, and audit secret exclusion. `npm run test:e2e` exercises full HTTP workflows against the running app. Run only with fictional local data. See QA.md for observed browser verification and test counts.
-
-A successful portal switch removes the previous identity in the same browser: student login signs out the current staff session and clears staff token cookies; teacher login revokes the current student token and deletes its cookie. Staff logout uses local session scope so other devices remain signed in. Browsers already displaying a previously authorized record cannot be made to forget information they have seen, but subsequent data requests always recheck authorization.
-
-## Current beta.4 boundaries
-
-The V1 limits above are historical: invite signup, per-course teacher scope and administrator settings now exist. Teachers may update an existing student in an authorized enrollment; central creation/permanent removal and PIN reset remain admin-only. Explicit homeroom access covers all subjects for the selected classroom and term, never arbitrary school data. Academic purge is an admin operation and includes related published grades. Course/student result reset is scoped and checks versions/current row snapshot. Private teacher photos accept actual JPEG/PNG/WebP only, are resized/reencoded without metadata, and are signed server-side for authorized profile reads. Deleting TEACHER accounts hard-deletes Auth/profile/photo/feedback/assignments, immediately revokes API access and removes stored profile audit copies; school grade records retain no account author reference. ADMIN/DEVELOPER/self deletion is blocked. Production student login remains disabled.
-
-Beta 5 teacher identity corrections use an administrator-only RPC and a strict HTTP schema. Legacy Thai names can be backfilled without changing an Auth email/password or granting additional permissions. Other account roles cannot be edited through this endpoint. A row lock and `updated_at` comparison prevent stale dialogs from overwriting newer profile or photo updates. See the rolled-back `scripts/test-teacher-edit.sql` and local-only `scripts/test-teacher-edit.mjs` probes.
+Local regression covers homeroom read/write separation, mixed-batch rollback, destructive-move restrictions, PIN authorization, session revocation, published-only student results, username changes, cross-student isolation, shared-browser identity switching, rate limits, anonymous RPC denial and absence of PIN audit leakage. Tests use invented local fixtures and remove their accounts/records afterward. Production smoke is read-only; academic-table fingerprints are compared before/after release.

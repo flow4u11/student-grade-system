@@ -19,7 +19,7 @@ type Feedback = Database["public"]["Tables"]["feedback"]["Row"];
 export function TeacherProfile() {
   const { t, locale } = useLocale();
   const th = locale === "th";
-  const { meta, setAvatarUrl } = useSchool();
+  const { meta, term, setAvatarUrl } = useSchool();
   const photoInput = useRef<HTMLInputElement>(null);
   const { data, error, reload } = useLoad<
     Profile & { avatar_url: string | null }
@@ -146,6 +146,17 @@ export function TeacherProfile() {
               </h2>
               <p className="id-text">{data.school_username}</p>
               <span className="badge">{data.role}</span>
+              <div className="identity">
+                {meta.homerooms
+                  .filter((h) => h.teacher_id === data.id && h.term_id === term)
+                  .map((h) => (
+                    <span className="badge green" key={h.class_id}>
+                      {th ? "ครูประจำชั้น" : "Homeroom"}{" "}
+                      {meta.classes.find((c) => c.id === h.class_id)?.name ||
+                        "—"}
+                    </span>
+                  ))}
+              </div>
             </div>
           </div>
           {!data.onboarding_complete && (

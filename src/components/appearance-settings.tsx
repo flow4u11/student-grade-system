@@ -3,7 +3,8 @@ import { useState, useSyncExternalStore } from "react";
 import { Monitor, Moon, Sun, Check } from "lucide-react";
 import { useTheme } from "next-themes";
 import { themePresets, palettePreset, type Palette } from "@/lib/theme";
-import { useLocale } from "./providers";
+import { useLocale, useBranding } from "./providers";
+import { usePersonalTheme } from "./personal-theme";
 import { Field } from "./ui";
 const subscribe = () => () => {};
 export function DisplaySettings() {
@@ -14,14 +15,23 @@ export function DisplaySettings() {
     () => false,
   );
   const { t, locale } = useLocale();
+  const school = useBranding();
+  const {
+    palette: personal,
+    setPalette,
+    design,
+    setDesign,
+  } = usePersonalTheme();
+  const palette = personal || school;
+  const preset = palettePreset(palette);
   return (
     <section className="panel dialog-body appearance-mode">
       <div className="settings-heading">
-        <h2>{locale === "th" ? "การแสดงผล" : "Display"}</h2>
+        <h2>{locale === "th" ? "Theme ส่วนตัว" : "Personal theme"}</h2>
         <p className="hint">
           {locale === "th"
-            ? "ใช้กับเครื่องนี้ สีของโรงเรียนกำหนดโดยผู้ดูแล"
-            : "Applies to this device. School colors are set by your administrator."}
+            ? "เลือก Theme หรือปรับสีเอง มีผลเฉพาะเบราว์เซอร์นี้ทันที"
+            : "Choose a preset or custom colors. Changes apply to this browser immediately."}
         </p>
       </div>
       <div className="display-modes" aria-label={t("theme")}>
@@ -45,6 +55,92 @@ export function DisplaySettings() {
           </button>
         ))}
       </div>
+      <div className="personal-theme-design">
+        <h3>{locale === "th" ? "สไตล์หน้าตา" : "Design style"}</h3>
+        <div className="display-modes">
+          {(
+            [
+              ["standard", "Classic"],
+              ["glass", "Glassmorphism"],
+              ["neo", "Neobrutalism"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              type="button"
+              className={`button ${design === value ? "mode-selected" : ""}`}
+              key={value}
+              aria-pressed={design === value}
+              onClick={() => setDesign(value)}
+            >
+              {label}
+              {design === value && <Check size={16} />}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="settings-heading personal-theme-heading">
+        <span className="badge">
+          {!personal
+            ? locale === "th"
+              ? "ตามโรงเรียน"
+              : "School default"
+            : preset
+              ? locale === "th"
+                ? preset.th
+                : preset.en
+              : "Custom"}
+        </span>
+        <button
+          type="button"
+          className="button small"
+          onClick={() => setPalette(null)}
+        >
+          {locale === "th" ? "ใช้ Theme ของโรงเรียน" : "Use school theme"}
+        </button>
+      </div>
+      <div className="theme-presets">
+        {themePresets.map((item) => (
+          <button
+            type="button"
+            key={item.id}
+            className={`theme-preset ${personal && preset?.id === item.id ? "selected" : ""}`}
+            onClick={() => setPalette(item)}
+            aria-pressed={!!personal && preset?.id === item.id}
+          >
+            {locale === "th" ? item.th : item.en}
+            {personal && preset?.id === item.id && <Check size={16} />}
+          </button>
+        ))}
+      </div>
+      <div className="form-grid">
+        {(
+          [
+            ["primary_color", locale === "th" ? "สีหลัก" : "Primary"],
+            ["secondary_color", locale === "th" ? "สีรอง" : "Secondary"],
+            [
+              "background_color",
+              locale === "th" ? "พื้นหลังสว่าง" : "Light background",
+            ],
+            [
+              "background_color_dark",
+              locale === "th" ? "พื้นหลังมืด" : "Dark background",
+            ],
+          ] as const
+        ).map(([key, label]) => (
+          <Field label={label} key={key}>
+            <span className="color-field">
+              <input
+                type="color"
+                value={palette[key]}
+                onChange={(e) =>
+                  setPalette({ ...palette, [key]: e.target.value })
+                }
+              />
+              <span>{palette[key].toUpperCase()}</span>
+            </span>
+          </Field>
+        ))}
+      </div>
     </section>
   );
 }
@@ -55,7 +151,9 @@ export function AppearanceFields({ initial }: { initial: Palette }) {
   const preset = palettePreset(palette);
   return (
     <fieldset className="settings-section">
-      <legend>{th ? "Theme และสีของโรงเรียน" : "School theme & colors"}</legend>
+      <legend>
+        {th ? "Theme เริ่มต้นของโรงเรียน" : "Default school theme"}
+      </legend>
       <div className="settings-heading">
         <p className="hint">
           {th

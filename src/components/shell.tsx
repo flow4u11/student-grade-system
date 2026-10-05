@@ -2,6 +2,7 @@
 import { Select } from "./select";
 import { NavTooltip } from "./nav-tooltip";
 import { ConnectionStatus } from "./connection-status";
+import { ThaiClock, WelcomeScreen } from "./workspace-extras";
 import { NavigationScroll } from "./navigation-scroll";
 import type { WorkRow } from "./course-picker";
 import { isAdmin } from "@/lib/permissions";
@@ -19,7 +20,6 @@ import {
   CalendarDays,
   School,
   Library,
-  SlidersHorizontal,
   Grid3X3,
   History,
   CircleHelp,
@@ -30,6 +30,8 @@ import {
   UserPlus,
   ArrowUpRight,
   ShieldCheck,
+  Settings,
+  ClipboardList,
 } from "lucide-react";
 import Image from "next/image";
 import {
@@ -50,6 +52,7 @@ const navGroups = [
       ["dashboard", LayoutDashboard],
       ["gradebook", Grid3X3],
       ["students", Users],
+      ["homeroom", School],
     ],
   },
   {
@@ -60,7 +63,7 @@ const navGroups = [
       ["subjects", Library],
       ["classes", School],
       ["terms", CalendarDays],
-      ["schemes", SlidersHorizontal],
+      ["schemes", ClipboardList],
     ],
   },
   {
@@ -78,7 +81,7 @@ const navGroups = [
     th: "ตั้งค่าและช่วยเหลือ",
     en: "Account & help",
     items: [
-      ["settings", SlidersHorizontal],
+      ["settings", Settings],
       ["guide", CircleHelp],
       ["feedback", CircleHelp],
     ],
@@ -186,30 +189,40 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 <p className="nav-label">
                   {locale === "th" ? group.th : group.en}
                 </p>
-                {group.items.map(([key, Icon]) => (
-                  <NavTooltip
-                    key={key}
-                    label={t(key)}
-                    enabled={collapsed && !mobile}
-                  >
-                    <Link
-                      href={
-                        key === "dashboard" ? "/teacher" : `/teacher/${key}`
-                      }
-                      scroll={false}
-                      onNavigate={() =>
-                        window.scrollTo({ top: 0, behavior: "instant" })
-                      }
-                      aria-label={t(key)}
-                      onClick={() => setMobile(false)}
-                      className={`nav-item ${section === key ? "current" : ""}`}
-                      aria-current={section === key ? "page" : undefined}
+                {group.items
+                  .filter(
+                    ([key]) =>
+                      key !== "homeroom" ||
+                      meta?.homerooms.some(
+                        (h) =>
+                          h.teacher_id === meta.profile.id &&
+                          h.term_id === term,
+                      ),
+                  )
+                  .map(([key, Icon]) => (
+                    <NavTooltip
+                      key={key}
+                      label={t(key)}
+                      enabled={collapsed && !mobile}
                     >
-                      <Icon size={19} />
-                      <span>{t(key)}</span>
-                    </Link>
-                  </NavTooltip>
-                ))}
+                      <Link
+                        href={
+                          key === "dashboard" ? "/teacher" : `/teacher/${key}`
+                        }
+                        scroll={false}
+                        onNavigate={() =>
+                          window.scrollTo({ top: 0, behavior: "instant" })
+                        }
+                        aria-label={t(key)}
+                        onClick={() => setMobile(false)}
+                        className={`nav-item ${section === key ? "current" : ""}`}
+                        aria-current={section === key ? "page" : undefined}
+                      >
+                        <Icon size={19} />
+                        <span>{t(key)}</span>
+                      </Link>
+                    </NavTooltip>
+                  ))}
               </div>
             ))}
         </NavigationScroll>
@@ -242,6 +255,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
                       t("teacher")
                     ).slice(0, 1)
                   )}
+                  <ConnectionStatus dot />
                 </span>
                 <div>
                   <strong>
@@ -294,7 +308,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 {locale === "th" ? "เชิญครู" : "Invite teacher"}
               </Link>
             )}
-            <ConnectionStatus />
+            <ThaiClock />
             <Preferences compact />
             <label className="term-picker">
               <span className="sr-only">{t("term")}</span>
@@ -362,6 +376,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <Loading />
           )}
         </main>
+        <WelcomeScreen
+          name={
+            meta?.profile.display_name || identity?.display_name || t("teacher")
+          }
+        />
         <footer className="workspace-footer">
           <ShieldCheck size={14} />
           {t("privacyNote")} · v{APP_VERSION}
@@ -379,6 +398,9 @@ export function Dashboard() {
     term ? `/api/staff/work?term=${term}` : null,
   );
   const [filter, setFilter] = useState<"all" | "pending" | "complete">("all");
+  const { data: summary } = useLoad<{ counts: number[] }>(
+    "/api/staff/dashboard",
+  );
   const rows = data?.rows || [];
   const total = rows.reduce((n, r) => n + r.total, 0);
   const recorded = rows.reduce((n, r) => n + r.recorded, 0);
@@ -401,10 +423,25 @@ export function Dashboard() {
           </h1>
           <p>{t("myWork")}</p>
         </div>
-        <Link className="button" href="/teacher/guide">
-          <CircleHelp size={17} />
-          {t("guide")}
-        </Link>
+        <div className="dashboard-heading-actions">
+          <div className="student-total">
+            <Users size={18} />
+            <strong>{summary?.counts[0] ?? "—"}</strong>
+            <span>
+              {isAdmin(meta.profile.role)
+                ? th
+                  ? "นักเรียนทั้งหมด"
+                  : "All students"
+                : th
+                  ? "นักเรียนที่มีสิทธิ์ดู"
+                  : "Accessible students"}
+            </span>
+          </div>{" "}
+          <Link className="button" href="/teacher/guide">
+            <CircleHelp size={17} />
+            {t("guide")}
+          </Link>
+        </div>
       </div>
       <Notice error={error && errorText(error)} />
       {error ? (

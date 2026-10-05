@@ -8,11 +8,11 @@ import { StudentPortal } from "@/components/student-portal";
 export default async function Page() {
   if (!studentPortalEnabled()) redirect("/login");
   const token = (await cookies()).get("school_student")?.value;
-  if (!token) redirect("/login");
+  if (!token) redirect("/student/login");
   const { data, error } = await serviceClient().rpc("student_portal", {
     session_hash: hash(token),
   });
   if (error) throw new Error("Portal temporarily unavailable");
-  if (!data) redirect("/login");
+  if (!data) redirect("/student/login");
   return <StudentPortal data={portalSchema.parse(data)} />;
 }

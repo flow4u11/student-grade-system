@@ -2698,29 +2698,10 @@ a {
   text-underline-offset: 4px;
   text-decoration-thickness: 1px;
 }
-a[href]:hover,
-button:hover:not(:disabled),
-summary:hover {
-  text-decoration: underline;
-}
-a.guide-card:hover,
-a.quick-card:hover,
-a.work-card:hover,
-.nav-item:hover,
-.profile-link:hover,
-.course-option:hover,
-.course-picker-toggle:hover,
-.theme-preset:hover {
-  text-decoration: none;
-}
-.nav-item:hover > span,
-.profile-link:hover strong,
-.course-option:hover > strong,
-.course-picker-toggle:hover .course-change,
-.theme-preset:hover > span:not(.palette-swatches),
-a.guide-card:hover h3,
-a.quick-card:hover h3,
-a.work-card:hover h2 {
+/* Underlines are reserved for inline text links, not whole controls/cards. */
+.text-link:hover,
+.student-name-link:hover,
+.teacher-profile-name:hover {
   text-decoration: underline;
 }
 .button,
@@ -3628,4 +3609,391 @@ select.select-form-bridge {
 .select-viewport::-webkit-scrollbar-thumb {
   background: var(--line);
   border-radius: 999px;
+}
+
+/* Beta.8: quieter controls, consistent density and readable grade status. */
+.grade-low {
+  color: #b52e3b;
+}
+.grade-fair {
+  color: #a35719;
+}
+.grade-medium {
+  color: #77711e;
+}
+.grade-good {
+  color: #167b59;
+}
+.grade-perfect {
+  color: #936815;
+  background: linear-gradient(135deg, #fff3c7, #f2dd96);
+  border-color: #dfbe69;
+}
+.dark .grade-low {
+  color: #ff9aa5;
+}
+.dark .grade-fair {
+  color: #f1b379;
+}
+.dark .grade-medium {
+  color: #e0d284;
+}
+.dark .grade-good {
+  color: #80d7b3;
+}
+.dark .grade-perfect {
+  color: #ffe49a;
+  background: linear-gradient(135deg, #493c20, #302917);
+  border-color: #887141;
+}
+.teacher-profile-name {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--accent);
+  font-weight: 650;
+  text-align: left;
+}
+.teacher-profile-facts {
+  display: grid;
+  gap: 14px;
+  margin: 20px 0;
+}
+.teacher-profile-facts > div {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr);
+  gap: 18px;
+}
+.teacher-profile-facts dt {
+  color: var(--muted);
+}
+.teacher-profile-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.profile-homeroom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+.student-activity-panel {
+  margin-top: 24px;
+}
+.avatar {
+  position: relative;
+  overflow: visible;
+}
+.avatar img {
+  border-radius: inherit;
+}
+.connection-status.connection-dot {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  padding: 2px;
+  background: var(--surface);
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  min-width: 12px;
+}
+.connection-dot i {
+  width: 7px;
+  height: 7px;
+  box-shadow: none;
+}
+.thai-clock {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 106px;
+}
+.thai-clock time {
+  line-height: 1.35;
+  color: var(--text);
+  font-size: 12px;
+}
+.thai-clock small {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+}
+.dashboard-heading-actions {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.student-total {
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: 9px;
+  align-items: center;
+}
+.student-total strong {
+  font-size: 23px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+.student-total span {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 3px;
+}
+.classroom-overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.classroom-stat {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 12px;
+  align-items: center;
+  padding: 22px;
+}
+.classroom-stat strong {
+  font-size: 28px;
+  font-variant-numeric: tabular-nums;
+}
+.classroom-stat span,
+.classroom-stat progress {
+  grid-column: 1/-1;
+}
+.classroom-stat span {
+  color: var(--muted);
+}
+.homeroom-course-grid {
+  margin-top: 28px;
+}
+.homeroom-course-grid .work-card {
+  padding: 18px 22px;
+}
+.personal-theme-heading {
+  justify-content: space-between;
+  margin-top: 22px;
+}
+.support-button {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 35;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 15px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 6px 24px #00000012;
+  font-size: 12px;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease;
+}
+.support-button:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+  text-decoration: none;
+}
+.support-button svg {
+  color: #c76a7e;
+}
+.welcome-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 180;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(18px);
+  animation: welcome-reveal 320ms ease-out both;
+}
+.welcome-card {
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+  text-align: center;
+  animation: welcome-reveal 500ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.welcome-mark {
+  display: grid;
+  place-items: center;
+  width: 80px;
+  height: 80px;
+  border-radius: 26px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.welcome-card p {
+  color: var(--muted);
+  font-size: 18px;
+}
+.welcome-card .button {
+  margin-top: 8px;
+}
+@keyframes welcome-reveal {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+    filter: blur(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+.skeleton-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+.skeleton-card-grid .skeleton-panel {
+  min-height: 180px;
+}
+.skeleton-input {
+  width: 100%;
+  min-height: 44px;
+}
+.skeleton-gpa {
+  width: 100px;
+  height: 54px;
+  margin-left: auto;
+}
+.skeleton-layout-table .skeleton-row,
+.skeleton-layout-profile .skeleton-row {
+  grid-template-columns: 0.5fr 1.3fr 1fr 0.6fr;
+}
+.skeleton-layout-form .skeleton-panel {
+  padding: 26px;
+}
+.records-table td {
+  padding-top: 13px;
+  padding-bottom: 13px;
+}
+.record-action-grid {
+  gap: 8px;
+}
+.records-table .record-action-grid .button {
+  min-height: 34px;
+  padding: 6px 11px;
+  border-radius: 11px;
+  font-size: 12px;
+}
+.course-picker-toggle {
+  padding: 16px 20px;
+  gap: 14px;
+}
+.course-picker-toggle strong {
+  font-size: 16px;
+}
+.course-picker-body {
+  padding: 16px 20px;
+}
+.course-options {
+  gap: 12px;
+  max-height: 380px;
+  overflow-y: auto;
+  padding: 3px;
+}
+.course-option {
+  padding: 14px 16px;
+  gap: 8px;
+  border-radius: 16px;
+}
+.course-option > strong {
+  font-size: 14px;
+}
+@media (max-width: 760px) {
+  .thai-clock {
+    display: none;
+  }
+  .classroom-overview {
+    gap: 10px;
+  }
+  .classroom-stat {
+    padding: 15px;
+  }
+  .classroom-stat strong {
+    font-size: 23px;
+  }
+  .teacher-profile-facts > div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .support-button {
+    bottom: 12px;
+    right: 12px;
+  }
+  .skeleton-card-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 440px) {
+  .classroom-overview {
+    grid-template-columns: 1fr;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .welcome-screen,
+  .welcome-card {
+    animation: none;
+  }
+  .support-button {
+    transition: none;
+  }
+  .support-button:hover {
+    transform: none;
+  }
+}
+.personal-theme-design {
+  margin-top: 22px;
+}
+.personal-theme-design h3 {
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+html[data-school-design="glass"] .app-shell .panel,
+html[data-school-design="glass"] .app-shell .sidebar,
+html[data-school-design="glass"] .app-shell .topbar {
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
+  backdrop-filter: blur(22px) saturate(1.3);
+  border-color: color-mix(in srgb, var(--line) 75%, transparent);
+  box-shadow: 0 8px 32px #0000000a;
+}
+html[data-school-design="glass"] .app-shell {
+  background:
+    radial-gradient(
+      ellipse at 10% 10%,
+      color-mix(in srgb, var(--school-secondary) 38%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse at 95% 75%,
+      color-mix(in srgb, var(--school-primary) 15%, transparent),
+      transparent 70%
+    ),
+    var(--bg);
+}
+html[data-school-design="neo"] .app-shell .panel,
+html[data-school-design="neo"] .app-shell .button,
+html[data-school-design="neo"] .app-shell .select-trigger {
+  border: 2px solid var(--text);
+  border-radius: 8px;
+  box-shadow: 3px 3px 0 var(--text);
+}
+html[data-school-design="neo"] .app-shell .button:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--text);
+}
+html[data-school-design="neo"] .app-shell .nav-item.current {
+  border-radius: 8px;
+  border: 2px solid var(--text);
 }

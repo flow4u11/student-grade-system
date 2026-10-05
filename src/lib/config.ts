@@ -1,5 +1,5 @@
 export function studentPortalEnabled() {
-  return process.env.STUDENT_PORTAL_ENABLED !== "false";
+  return process.env.STUDENT_PORTAL_ENABLED === "true";
 }
 
 export function secureCookies() {

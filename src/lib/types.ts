@@ -42,6 +42,7 @@ export type Scheme = {
   grade_scheme_rules: Rule[];
 };
 export type Offering = {
+  can_edit?: boolean;
   archived: boolean;
   id: string;
   subject_id: string;
@@ -74,6 +75,8 @@ export type Enrollment = {
   students: Student;
 };
 export type Meta = {
+  teaching_offering_ids?: string[];
+  teachers?: { id: string; display_name: string }[];
   homerooms: { teacher_id: string; term_id: string; class_id: string }[];
   terms: Term[];
   classes: SchoolClass[];

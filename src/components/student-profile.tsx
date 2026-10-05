@@ -1,6 +1,7 @@
 "use client";
 import { Select } from "./select";
 import { ResetCourseGrades } from "./reset-course-grades";
+import { ResetStudentPin } from "./reset-student-pin";
 import { isAdmin } from "@/lib/permissions";
 import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
@@ -14,6 +15,8 @@ import { api, Empty, Loading, Notice, useError } from "./ui";
 import { RecordEditor } from "./record-editor";
 import { DeleteRecord } from "./delete-record";
 import { gpa, gradePreview, passPreview, validDecimal } from "@/lib/grading";
+import { gradeTone } from "@/lib/grade-tone";
+import { auditLabel } from "@/lib/audit-label";
 import type { Grade, Offering, Student } from "@/lib/types";
 type ProfileData = {
   student: Student & {
@@ -26,11 +29,19 @@ type ProfileData = {
   offerings: Offering[];
   grades: Grade[];
   neighbors: { previous?: string | null; next?: string | null };
+  homeroom_teachers?: { id: string; display_name: string }[];
+  activity?: {
+    id: number;
+    actor_name: string | null;
+    action: string;
+    entity: string;
+    created_at: string;
+  }[];
 };
 type Draft = { score: string; result: string };
 gsap.registerPlugin(useGSAP);
 export function StudentProfile({ id }: { id: string }) {
-  const { term, studentDirection } = useSchool();
+  const { term } = useSchool();
   const stage = useRef<HTMLDivElement>(null);
   const { t } = useLocale();
   const errorText = useError();
@@ -45,13 +56,15 @@ export function StudentProfile({ id }: { id: string }) {
       media.add("(prefers-reduced-motion: no-preference)", () => {
         gsap.fromTo(
           stage.current,
-          { x: studentDirection === "next" ? 20 : -20, opacity: 0.72 },
+          { scale: 0.992, y: 5, opacity: 0, filter: "blur(3px)" },
           {
-            x: 0,
+            scale: 1,
+            y: 0,
             opacity: 1,
-            duration: 0.26,
+            filter: "blur(0px)",
+            duration: 0.32,
             ease: "power3.out",
-            clearProps: "transform,opacity",
+            clearProps: "transform,opacity,filter",
           },
         );
       });
@@ -104,7 +117,7 @@ function ProfileGrades({
   const { prime } = useNavigationData();
   const stage = useRef<HTMLFieldSetElement>(null);
   const { contextSafe } = useGSAP({ scope: stage });
-  function slideOut(direction: "next" | "previous") {
+  function transitionOut() {
     return contextSafe(() => {
       if (
         !stage.current ||
@@ -113,10 +126,11 @@ function ProfileGrades({
         return Promise.resolve();
       return new Promise<void>((resolve) => {
         gsap.to(stage.current, {
-          x: direction === "next" ? -16 : 16,
-          opacity: 0.65,
-          duration: 0.14,
-          ease: "power2.inOut",
+          opacity: 0.12,
+          scale: 0.994,
+          filter: "blur(2px)",
+          duration: 0.12,
+          ease: "power2.out",
           onComplete: resolve,
           onInterrupt: resolve,
           overwrite: true,
@@ -152,6 +166,7 @@ function ProfileGrades({
     (c) =>
       c.id === student.enrollments.find((e) => e.term_id === term)?.class_id,
   );
+  const enrollment = student.enrollments.find((e) => e.term_id === term);
   const offerings = [...data.offerings].sort((a, b) =>
     (
       meta.subjects.find((s) => s.id === a.subject_id)?.code || ""
@@ -168,6 +183,9 @@ function ProfileGrades({
       result: g?.result || "",
     };
   };
+  const canEdit = (id: string) =>
+    offerings.some((o) => o.id === id && o.can_edit !== false);
+  const editableGrades = data.grades.filter((g) => canEdit(g.offering_id));
   const manual = (o: Offering) =>
     o.grading_type === "PASS_FAIL" && o.pass_mode === "MANUAL";
   const dirty = Object.keys(drafts).length > 0;
@@ -208,6 +226,7 @@ function ProfileGrades({
     };
   }, [setUnsaved]);
   function change(id: string, key: keyof Draft, value: string) {
+    if (!canEdit(id)) return;
     const next = {
       ...drafts,
       [id]: { ...(drafts[id] || original(id)), [key]: value },
@@ -231,10 +250,10 @@ function ProfileGrades({
     try {
       router.prefetch(`/teacher/students/${id}?term=${term}`);
       // Fetch before the route changes: keep the current student visible until
-      // the next student's authorized data is ready for a single slide.
+      // the next student's authorized data is ready for a single transition.
       await prime(`/api/staff/student-profile?student=${id}&term=${term}`);
       if (!navigationActive.current) return;
-      await slideOut(direction);
+      await transitionOut();
       if (!navigationActive.current) return;
       setStudentDirection(direction);
       setUnsaved(false);
@@ -256,19 +275,21 @@ function ProfileGrades({
     setError("");
     const rows =
       publish === undefined
-        ? Object.entries(drafts).map(([offering_id, v]) => ({
-            offering_id,
-            version:
-              data.grades.find((g) => g.offering_id === offering_id)?.version ||
-              0,
-            score: manual(offerings.find((o) => o.id === offering_id)!)
-              ? null
-              : v.score,
-            result: manual(offerings.find((o) => o.id === offering_id)!)
-              ? v.result
-              : null,
-          }))
-        : data.grades
+        ? Object.entries(drafts)
+            .filter(([id]) => canEdit(id))
+            .map(([offering_id, v]) => ({
+              offering_id,
+              version:
+                data.grades.find((g) => g.offering_id === offering_id)
+                  ?.version || 0,
+              score: manual(offerings.find((o) => o.id === offering_id)!)
+                ? null
+                : v.score,
+              result: manual(offerings.find((o) => o.id === offering_id)!)
+                ? v.result
+                : null,
+            }))
+        : editableGrades
             .filter((g) =>
               publish ? g.state !== "PUBLISHED" : g.state === "PUBLISHED",
             )
@@ -317,12 +338,21 @@ function ProfileGrades({
             </span>
             <span className="badge green">{cls?.name || "—"}</span>
             <span className="badge">
+              {t("rollNumber")} {enrollment?.roll_number ?? "—"}
+            </span>
+            <span className="badge">
               {t(student.active ? "active" : "inactive")}
             </span>
           </div>
+          {!!data.homeroom_teachers?.length && (
+            <p className="profile-homeroom muted">
+              {locale === "th" ? "ครูประจำชั้น" : "Homeroom teacher"}:{" "}
+              {data.homeroom_teachers.map((p) => p.display_name).join(", ")}
+            </p>
+          )}
         </div>
         <strong
-          className="gpa-minimal"
+          className={`gpa-minimal ${gradeTone(profileGpa, true)}`}
           tabIndex={0}
           aria-label={`GPA ${profileGpa ?? "—"} · ${counted} ${t("gpaSubjects")}${!isAdmin(meta.profile.role) && !meta.homerooms.some((h) => h.term_id === term && h.class_id === student.enrollments.find((e) => e.term_id === term)?.class_id) ? ` · ${t("assignedResultsOnly")}` : ""}`}
         >
@@ -333,6 +363,13 @@ function ProfileGrades({
         </strong>
         {
           <div className="row-actions">
+            {student.active && enrollment && (
+              <ResetStudentPin
+                studentId={student.id}
+                termId={term}
+                studentNumber={student.student_number}
+              />
+            )}
             <button
               className="button"
               disabled={busy}
@@ -397,6 +434,13 @@ function ProfileGrades({
         </div>
       </div>
       <p className="hint grading-hint">{t("studentGradesHint")}</p>
+      {offerings.some((o) => o.can_edit === false) && (
+        <p className="notice">
+          {locale === "th"
+            ? "ดูผลการเรียนได้ทุกวิชาของห้องประจำชั้น กรอก แก้ไข และประกาศผลได้เฉพาะวิชาที่ผู้ดูแลมอบหมายให้สอน"
+            : "Homeroom access shows every course. You can grade and publish only courses assigned to you."}
+        </p>
+      )}
       <Notice error={error} />
       {error && (
         <button className="button" onClick={refresh}>
@@ -435,7 +479,9 @@ function ProfileGrades({
             <button
               className="button"
               disabled={
-                busy || dirty || !data.grades.some((g) => g.state === "DRAFT")
+                busy ||
+                dirty ||
+                !editableGrades.some((g) => g.state === "DRAFT")
               }
               onClick={() => write(true)}
             >
@@ -447,7 +493,7 @@ function ProfileGrades({
               disabled={
                 busy ||
                 dirty ||
-                !data.grades.some((g) => g.state === "PUBLISHED")
+                !editableGrades.some((g) => g.state === "PUBLISHED")
               }
               onClick={() => write(false)}
             >
@@ -489,12 +535,22 @@ function ProfileGrades({
                   const enter = (e: React.KeyboardEvent) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
-                      const next = inputs.current[i + (e.shiftKey ? -1 : 1)];
-                      next?.focus();
-                      if (next instanceof HTMLInputElement) next.select();
+                      const step = e.shiftKey ? -1 : 1;
+                      for (
+                        let index = i + step;
+                        index >= 0 && index < inputs.current.length;
+                        index += step
+                      ) {
+                        const next = inputs.current[index];
+                        if (!next || next.disabled) continue;
+                        next.focus();
+                        if (next instanceof HTMLInputElement) next.select();
+                        break;
+                      }
                     }
                   };
                   const label = `${t(manual(o) ? "result" : "score")} ${sub?.code}`;
+                  const readOnly = o.can_edit === false;
                   return (
                     <tr key={o.id} className={drafts[o.id] ? "dirty-row" : ""}>
                       <td>
@@ -504,6 +560,8 @@ function ProfileGrades({
                         <span className="subline">
                           {sub?.code} · {o.credits} {t("credits")}{" "}
                           {o.archived && ` · ${t("archived")}`}
+                          {readOnly &&
+                            ` · ${locale === "th" ? "ดูได้อย่างเดียว" : "View only"}`}
                         </span>
                       </td>
                       <td data-label={t("score")}>
@@ -513,6 +571,7 @@ function ProfileGrades({
                             aria-invalid={bad}
                             disabled={
                               busy ||
+                              readOnly ||
                               !student.active ||
                               o.archived ||
                               g?.state === "PUBLISHED"
@@ -541,6 +600,7 @@ function ProfileGrades({
                               maxLength={12}
                               disabled={
                                 busy ||
+                                readOnly ||
                                 !student.active ||
                                 o.archived ||
                                 g?.state === "PUBLISHED"
@@ -560,7 +620,9 @@ function ProfileGrades({
                         )}
                       </td>
                       <td data-label={t("grade")}>
-                        <strong className="grade-preview">
+                        <strong
+                          className={`grade-preview ${gradeTone(preview)}`}
+                        >
                           {preview === null || preview === ""
                             ? "—"
                             : preview === "PASS"
@@ -586,7 +648,7 @@ function ProfileGrades({
                         </span>
                       </td>
                       <td>
-                        {g && (
+                        {g && !readOnly && (
                           <ResetCourseGrades
                             offering={o.id}
                             learner={student.id}
@@ -603,6 +665,56 @@ function ProfileGrades({
             </table>
           </div>
           <p className="panel-footnote">{t("saveDraftHint")}</p>
+        </section>
+      )}
+      {isAdmin(meta.profile.role) && !!data.activity?.length && (
+        <section className="panel student-activity-panel">
+          <div className="dialog-body">
+            <h2>
+              {locale === "th"
+                ? "กิจกรรมล่าสุดของนักเรียน"
+                : "Recent student activity"}
+            </h2>
+            <p className="hint">
+              {locale === "th"
+                ? "ผู้ดำเนินการและการเปลี่ยนแปลงล่าสุด"
+                : "Who made the latest changes"}
+            </p>
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>{t("timestamp")}</th>
+                  <th>{t("actor")}</th>
+                  <th>{t("action")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.activity.map((a) => (
+                  <tr key={a.id}>
+                    <td>
+                      {new Intl.DateTimeFormat(
+                        locale === "th" ? "th-TH" : "en-GB",
+                        {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                          timeZone: "Asia/Bangkok",
+                        },
+                      ).format(new Date(a.created_at))}
+                    </td>
+                    <td>{a.actor_name || t("systemActor")}</td>
+                    <td>{auditLabel(a.action, locale)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="dialog-body">
+            <Link className="text-link" href="/teacher/audit">
+              {t("audit")}
+            </Link>
+          </div>
         </section>
       )}
       {editing && (

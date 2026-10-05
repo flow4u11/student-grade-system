@@ -16,6 +16,27 @@ import { validateImport } from "@/lib/import";
 import { workbookResponse } from "@/lib/workbook";
 import { studentExportRows, withStudentGpas } from "@/lib/student-gpa";
 import type { StudentListRow } from "@/lib/types";
+async function nameAuditActors<T extends { actor: string | null }>(
+  db: Awaited<ReturnType<typeof requireStaff>>["db"],
+  rows: T[],
+) {
+  const ids = [
+    ...new Set(rows.flatMap((row) => (row.actor ? [row.actor] : []))),
+  ];
+  if (!ids.length) return rows.map((row) => ({ ...row, actor_name: null }));
+  const profiles = await db
+    .from("profiles")
+    .select("id,display_name")
+    .in("id", ids);
+  if (profiles.error) throw profiles.error;
+  const names = new Map(
+    profiles.data.map((teacher) => [teacher.id, teacher.display_name]),
+  );
+  return rows.map((row) => ({
+    ...row,
+    actor_name: row.actor ? names.get(row.actor) || null : null,
+  }));
+}
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ resource: string }> },
@@ -73,17 +94,35 @@ export async function GET(
         throw new Error("Reference data limit reached");
       const homerooms = await db.from("homeroom_assignments").select("*");
       if (homerooms.error) throw homerooms.error;
+      const assignments = await db
+        .from("teacher_assignments")
+        .select("offering_id")
+        .eq("teacher_id", profile.id);
+      if (assignments.error) throw assignments.error;
+      const teachingIds = new Set(assignments.data.map((a) => a.offering_id));
+      const teachers = isAdmin(profile.role)
+        ? await db.from("profiles").select("id,display_name").eq("active", true)
+        : {
+            data: [{ id: profile.id, display_name: profile.display_name }],
+            error: null,
+          };
+      if (teachers.error) throw teachers.error;
       return json({
         profile: {
           ...profile,
           avatar_url: await signedAvatar(profile.avatar_path),
         },
         homerooms: homerooms.data,
+        teachers: teachers.data,
+        teaching_offering_ids: [...teachingIds],
         terms: results[0].data,
         classes: results[1].data,
         subjects: results[2].data,
         schemes: results[3].data,
-        offerings: results[4].data,
+        offerings: results[4].data!.map((offering) => ({
+          ...offering,
+          can_edit: isAdmin(profile.role) || teachingIds.has(offering.id),
+        })),
       });
     }
     if (resource === "work") {
@@ -168,7 +207,7 @@ export async function GET(
       const term = z.uuid().parse(q.get("term"));
       const student = await db
         .from("students")
-        .select("*,enrollments(class_id,term_id,roll_number)")
+        .select("*,enrollments(id,class_id,term_id,roll_number)")
         .eq("id", id)
         .maybeSingle();
       if (student.error) throw student.error;
@@ -198,11 +237,55 @@ export async function GET(
         term,
       });
       if (neighbors.error) throw neighbors.error;
+      const assignments = await db
+        .from("teacher_assignments")
+        .select("offering_id")
+        .eq("teacher_id", profile.id);
+      if (assignments.error) throw assignments.error;
+      const teachingIds = new Set(assignments.data.map((a) => a.offering_id));
+      const homeroomTeachers = enrollment
+        ? await db.rpc("class_homeroom_teachers", {
+            term,
+            classroom: enrollment.class_id,
+          })
+        : { data: [], error: null };
+      if (homeroomTeachers.error) throw homeroomTeachers.error;
+      let activity: Record<string, unknown>[] = [];
+      if (isAdmin(profile.role)) {
+        const recent = await db
+          .from("audit_logs")
+          .select("id,actor,action,entity,created_at,before_data,after_data")
+          .or(
+            `entity_id.eq.${id},after_data->>student_id.eq.${id},before_data->>student_id.eq.${id},after_data->>student.eq.${id}`,
+          )
+          .order("id", { ascending: false })
+          .limit(20);
+        if (recent.error) throw recent.error;
+        const named = await nameAuditActors(db, recent.data);
+        activity = named.map(({ before_data, after_data, ...log }) => {
+          const before = before_data as Record<string, unknown> | null;
+          const after = after_data as Record<string, unknown> | null;
+          const action =
+            log.entity !== "student_grades"
+              ? log.action
+              : before?.state !== "PUBLISHED" && after?.state === "PUBLISHED"
+                ? "PUBLISH"
+                : before?.state === "PUBLISHED" && after?.state === "DRAFT"
+                  ? "UNPUBLISH"
+                  : log.action;
+          return { ...log, action };
+        });
+      }
       return json({
         neighbors: neighbors.data,
         student: student.data,
-        offerings: offerings.data,
+        offerings: offerings.data.map((offering) => ({
+          ...offering,
+          can_edit: isAdmin(profile.role) || teachingIds.has(offering.id),
+        })),
         grades: grades.data,
+        homeroom_teachers: homeroomTeachers.data,
+        activity,
       });
     }
     if (resource === "gradebook" || resource === "gradebook-export") {
@@ -300,7 +383,13 @@ export async function GET(
           ],
         );
       }
-      return json({ enrollments, grades: results[1].data });
+      const writable = await db.rpc("can_edit_offering", { target: offering });
+      if (writable.error) throw writable.error;
+      return json({
+        enrollments,
+        grades: results[1].data,
+        can_edit: writable.data,
+      });
     }
     if (resource === "template")
       return workbookResponse("student-import-template", [
@@ -318,7 +407,10 @@ export async function GET(
         .order("id", { ascending: false })
         .range(page * 50, page * 50 + 49);
       if (error) throw error;
-      return json({ rows: data, total: count });
+      return json({
+        rows: await nameAuditActors(db, data || []),
+        total: count,
+      });
     }
     return json({ error: "notFound" }, 404);
   } catch (e) {

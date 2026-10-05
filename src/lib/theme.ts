@@ -59,3 +59,28 @@ export function palettePreset(palette: Palette) {
     ).every((key) => preset[key].toLowerCase() === palette[key].toLowerCase()),
   );
 }
+
+// Stored preferences are untrusted: accept only complete hexadecimal palettes.
+export function parsePalette(raw: string | null): Palette | null {
+  if (!raw) return null;
+  try {
+    const value = JSON.parse(raw);
+    const keys = [
+      "primary_color",
+      "secondary_color",
+      "background_color",
+      "background_color_dark",
+    ] as const;
+    if (
+      !value ||
+      !keys.every(
+        (key) =>
+          typeof value[key] === "string" && /^#[a-f\d]{6}$/i.test(value[key]),
+      )
+    )
+      return null;
+    return Object.fromEntries(keys.map((key) => [key, value[key]])) as Palette;
+  } catch {
+    return null;
+  }
+}

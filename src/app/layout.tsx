@@ -3,7 +3,9 @@ import type { CSSProperties } from "react";
 import { schoolBranding } from "@/lib/school-settings";
 import localFont from "next/font/local";
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { defaultBranding } from "@/lib/branding";
+import { SupportButton } from "@/components/workspace-extras";
 import { Providers } from "@/components/providers";
 import "./globals.css";
 const thaiFont = localFont({
@@ -22,7 +24,10 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const school = await schoolBranding();
+  const path = (await headers()).get("x-school-path");
+  const publicPage =
+    path === "/" || path === "/demo" || path?.startsWith("/demo/");
+  const school = publicPage ? defaultBranding : await schoolBranding();
   const preference = (await cookies()).get("school_locale")?.value;
   const locale =
     preference === "en" || preference === "th"
@@ -61,6 +66,7 @@ export default async function RootLayout({
           }
         >
           {children}
+          <SupportButton />
         </Providers>
       </body>
     </html>

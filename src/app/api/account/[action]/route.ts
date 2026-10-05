@@ -35,11 +35,28 @@ export async function GET(request: Request, { params }: Context) {
       const r = await db
         .from("profiles")
         .select(
-          "id,display_name,school_username,active,role,official_first_name_th,official_last_name_th,official_first_name,official_last_name,nickname,contact_email,contact_phone,updated_at",
+          "id,display_name,school_username,active,role,official_first_name_th,official_last_name_th,official_first_name,official_last_name,nickname,contact_email,contact_phone,updated_at,bio,teaching_request,avatar_path",
         )
         .order("display_name");
       if (r.error) throw r.error;
-      return json({ rows: r.data });
+      const homerooms = await db
+        .from("homeroom_assignments")
+        .select("teacher_id,term_id,class_id");
+      if (homerooms.error) throw homerooms.error;
+      return json({
+        rows: await Promise.all(
+          r.data.map(async (teacher) => {
+            const { avatar_path, ...details } = teacher;
+            return {
+              ...details,
+              avatar_url: await signedAvatar(avatar_path),
+              homerooms: homerooms.data
+                .filter((room) => room.teacher_id === teacher.id)
+                .map(({ term_id, class_id }) => ({ term_id, class_id })),
+            };
+          }),
+        ),
+      });
     }
     if (action === "settings") {
       if (!isAdmin(profile.role)) throw new Error("FORBIDDEN");

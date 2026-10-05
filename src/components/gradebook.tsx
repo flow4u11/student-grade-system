@@ -10,6 +10,7 @@ import { useLoad, useSchool } from "./data";
 import { useLocale } from "./providers";
 import { api, Empty, Loading, Notice, useError } from "./ui";
 import { gradePreview, passPreview, validDecimal } from "@/lib/grading";
+import { gradeTone } from "@/lib/grade-tone";
 import type { Enrollment, Grade, Offering } from "@/lib/types";
 export function Gradebook() {
   const { meta, term, unsaved, setUnsaved } = useSchool();
@@ -24,6 +25,7 @@ export function Gradebook() {
   const { data, error, reload, revision, refreshing } = useLoad<{
     enrollments: Enrollment[];
     grades: Grade[];
+    can_edit?: boolean;
   }>(offering ? `/api/staff/gradebook?offering=${offering.id}` : null);
   const work = useLoad<{ rows: WorkRow[] }>(
     term ? `/api/staff/work?term=${term}` : null,
@@ -115,12 +117,13 @@ function GradeGrid({
   refreshing,
 }: {
   offering: Offering;
-  data: { enrollments: Enrollment[]; grades: Grade[] };
+  data: { enrollments: Enrollment[]; grades: Grade[]; can_edit?: boolean };
   onSaved: () => void;
   refreshing: boolean;
 }) {
   const { meta, setUnsaved } = useSchool();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const readOnly = data.can_edit === false || o.can_edit === false;
   const errorText = useError();
   const [drafts, setDrafts] = useState<
     Record<string, { score: string; result: string }>
@@ -171,6 +174,7 @@ function GradeGrid({
       : !validDecimal(v.score || "") || Number(v.score) > o.max_score,
   );
   function change(sid: string, key: "score" | "result", value: string) {
+    if (readOnly) return;
     const g = data.grades.find((g) => g.student_id === sid);
     const original = {
       score: g?.score === null || g?.score === undefined ? "" : String(g.score),
@@ -189,7 +193,7 @@ function GradeGrid({
     setUnsaved(!!Object.keys(next).length);
   }
   async function save() {
-    if (!dirty || invalid) return;
+    if (readOnly || !dirty || invalid) return;
     setBusy(true);
     setError("");
     try {
@@ -203,6 +207,7 @@ function GradeGrid({
     }
   }
   async function publish(publish: boolean) {
+    if (readOnly) return;
     if (!window.confirm(t(publish ? "confirmPublish" : "confirmUnpublish")))
       return;
     setBusy(true);
@@ -227,6 +232,13 @@ function GradeGrid({
   return (
     <>
       <Notice error={error} />
+      {readOnly && (
+        <p className="notice">
+          {locale === "th"
+            ? "ดูผลการเรียนในฐานะครูประจำชั้น วิชานี้ไม่ได้มอบหมายให้คุณสอน จึงดูได้อย่างเดียว"
+            : "Homeroom view: this course is not assigned to you and is read only."}
+        </p>
+      )}
       <section className="panel">
         <div className="grade-toolbar">
           <span className={`status ${dirty ? "dirty" : ""}`} aria-live="polite">
@@ -236,7 +248,7 @@ function GradeGrid({
           <button
             className="button primary"
             onClick={save}
-            disabled={busy || !dirty || invalid}
+            disabled={readOnly || busy || !dirty || invalid}
           >
             <Save size={15} />
             {t(busy ? "saving" : "saveGrades")}
@@ -244,7 +256,7 @@ function GradeGrid({
           <button
             className="button"
             onClick={() => publish(true)}
-            disabled={busy || dirty || !data.grades.length}
+            disabled={readOnly || busy || dirty || !data.grades.length}
           >
             <Send size={15} />
             {t("publish")}
@@ -253,17 +265,22 @@ function GradeGrid({
             className="button"
             onClick={() => publish(false)}
             disabled={
-              busy || dirty || !data.grades.some((g) => g.state === "PUBLISHED")
+              readOnly ||
+              busy ||
+              dirty ||
+              !data.grades.some((g) => g.state === "PUBLISHED")
             }
           >
             {t("unpublish")}
           </button>
-          <ResetCourseGrades
-            offering={o.id}
-            rows={data.grades}
-            disabled={busy || dirty || !data.grades.length}
-            onSaved={onSaved}
-          />
+          {!readOnly && (
+            <ResetCourseGrades
+              offering={o.id}
+              rows={data.grades}
+              disabled={busy || dirty || !data.grades.length}
+              onSaved={onSaved}
+            />
+          )}
         </div>
         {invalid && <Notice error={t("invalidScore")} />}
         <div className="table-wrap">
@@ -305,9 +322,18 @@ function GradeGrid({
                 const enter = (event: React.KeyboardEvent) => {
                   if (event.key === "Enter") {
                     event.preventDefault();
-                    const next = inputs.current[i + (event.shiftKey ? -1 : 1)];
-                    next?.focus();
-                    if (next instanceof HTMLInputElement) next.select();
+                    const step = event.shiftKey ? -1 : 1;
+                    for (
+                      let index = i + step;
+                      index >= 0 && index < inputs.current.length;
+                      index += step
+                    ) {
+                      const next = inputs.current[index];
+                      if (!next || next.disabled) continue;
+                      next.focus();
+                      if (next instanceof HTMLInputElement) next.select();
+                      break;
+                    }
                   }
                 };
                 return (
@@ -338,6 +364,7 @@ function GradeGrid({
                           value={v.result}
                           disabled={
                             busy ||
+                            readOnly ||
                             !e.students.active ||
                             g?.state === "PUBLISHED"
                           }
@@ -364,6 +391,7 @@ function GradeGrid({
                           maxLength={12}
                           disabled={
                             busy ||
+                            readOnly ||
                             !e.students.active ||
                             g?.state === "PUBLISHED"
                           }
@@ -375,7 +403,7 @@ function GradeGrid({
                       )}
                     </td>
                     <td>
-                      <strong>
+                      <strong className={gradeTone(preview)}>
                         {preview === null || preview === ""
                           ? "—"
                           : preview === "PASS"

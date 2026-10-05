@@ -1,3 +1,4 @@
+import { parsePalette } from "../src/lib/theme";
 import { expect, it } from "vitest";
 import { NavigationCache } from "../src/lib/navigation-cache";
 import { palettePreset, themePresets } from "../src/lib/theme";
@@ -57,4 +58,21 @@ it("accepts legacy settings without overwriting backgrounds and rejects malforme
     settingsSchema.safeParse({ ...legacy, background_color_dark: "#fff" })
       .success,
   ).toBe(false);
+});
+
+it("ignores corrupted or incomplete persisted personal themes", () => {
+  expect(parsePalette(null)).toBeNull();
+  expect(parsePalette("{broken")).toBeNull();
+  expect(parsePalette(JSON.stringify({ primary_color: "#ffffff" }))).toBeNull();
+  expect(
+    parsePalette(
+      JSON.stringify({ ...themePresets[0], background_color: "url(example)" }),
+    ),
+  ).toBeNull();
+  expect(parsePalette(JSON.stringify(themePresets[1]))).toEqual({
+    primary_color: themePresets[1].primary_color,
+    secondary_color: themePresets[1].secondary_color,
+    background_color: themePresets[1].background_color,
+    background_color_dark: themePresets[1].background_color_dark,
+  });
 });

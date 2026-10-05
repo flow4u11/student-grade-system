@@ -9,7 +9,7 @@ function subscribe(listener: () => void) {
     window.removeEventListener("offline", listener);
   };
 }
-export function ConnectionStatus() {
+export function ConnectionStatus({ dot = false }: { dot?: boolean }) {
   const online = useSyncExternalStore(
     subscribe,
     () => navigator.onLine,
@@ -18,8 +18,17 @@ export function ConnectionStatus() {
   const { locale } = useLocale();
   return (
     <span
-      className={`connection-status ${online ? "is-online" : "is-offline"}`}
+      className={`connection-status ${dot ? "connection-dot" : ""} ${online ? "is-online" : "is-offline"}`}
       role="status"
+      aria-label={
+        locale === "th"
+          ? online
+            ? "ออนไลน์"
+            : "ออฟไลน์"
+          : online
+            ? "Online"
+            : "Offline"
+      }
       title={
         locale === "th"
           ? "สถานะการเชื่อมต่อเครือข่ายของเครื่องนี้"
@@ -27,13 +36,14 @@ export function ConnectionStatus() {
       }
     >
       <i aria-hidden="true" />
-      {locale === "th"
-        ? online
-          ? "ออนไลน์"
-          : "ออฟไลน์"
-        : online
-          ? "Online"
-          : "Offline"}
+      {!dot &&
+        (locale === "th"
+          ? online
+            ? "ออนไลน์"
+            : "ออฟไลน์"
+          : online
+            ? "Online"
+            : "Offline")}
     </span>
   );
 }
